@@ -505,3 +505,43 @@ body {
   }
 }
 
+
+
+
+
+.time-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  min-width: 160px;
+}
+.time-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d3748;
+}
+.time-filter-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e0;
+  font-size: 13px;
+  background: #ffffff;
+  outline: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+}
+.time-filter-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+@media (max-width: 768px) {
+  .time-filter-group {
+    width: 100%;
+  }
+
+  .time-filter-select {
+    width: 100%;
+  }
+}
+

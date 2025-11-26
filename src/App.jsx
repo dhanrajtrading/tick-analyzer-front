@@ -1,4 +1,593 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+// import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+// import './styles/globals.css';
+
+// // Optimized table component with synchronized scrolling
+// function DataTable({
+//   data,
+//   getDisplayValue,
+//   side,
+//   scrollRef,
+//   otherScrollRef,
+//   isSyncingRef,
+//   tableId,
+// }) {
+//   const initialRenderLimit = 1000;
+//   const [renderLimit, setRenderLimit] = useState(initialRenderLimit);
+
+//   const visibleData = useMemo(() => {
+//     return data.slice(0, Math.min(renderLimit, data.length));
+//   }, [data, renderLimit]);
+
+//   const handleScroll = useCallback(
+//     (e) => {
+//       const { scrollTop, scrollHeight, clientHeight } = e.target;
+//       const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+//       // Lazy load more rows
+//       if (scrollPercentage > 0.8 && renderLimit < data.length) {
+//         setRenderLimit((prev) => Math.min(prev + 500, data.length));
+//       }
+
+//       // If this scroll was triggered programmatically, don't sync back
+//       if (isSyncingRef?.current) {
+//         return;
+//       }
+
+//       // Sync scroll to the other table instantly
+//       if (otherScrollRef?.current) {
+//         isSyncingRef.current = true;
+//         otherScrollRef.current.scrollTop = scrollTop;
+
+//         // Reset flag on next frame
+//         if (window.requestAnimationFrame) {
+//           window.requestAnimationFrame(() => {
+//             isSyncingRef.current = false;
+//           });
+//         } else {
+//           setTimeout(() => {
+//             isSyncingRef.current = false;
+//           }, 0);
+//         }
+//       }
+//     },
+//     [data.length, renderLimit, isSyncingRef, otherScrollRef]
+//   );
+
+//   return (
+//     <div
+//       ref={scrollRef}
+//       className="table-scroll-container"
+//       onScroll={handleScroll}
+//     >
+//       <table className="data-table">
+//         <thead className="table-head">
+//           <tr>
+//             <th className="sr-no-col">Sr No</th>
+//             <th className="time-col">Time</th>
+//             <th>Last Price</th>
+//             <th>Volume</th>
+//             <th>OI</th>
+//             <th>Buy Qty</th>
+//             <th>Sell Qty</th>
+//           </tr>
+//         </thead>
+//         <tbody>
+//           {data.length === 0 ? (
+//             <tr>
+//               <td colSpan="7" className="empty-message">
+//                 Select files to compare data
+//               </td>
+//             </tr>
+//           ) : (
+//             <>
+//               {visibleData.map((row, index) => {
+//                 const item = side === 'left' ? row.data1 : row.data2;
+//                 const srNo = index + 1;
+//                 return (
+//                   <tr key={index} className={item ? '' : 'empty-row'}>
+//                     <td className="sr-no-col">{srNo}</td>
+//                     <td className="time-col">{row.time || ''}</td>
+//                     <td>{getDisplayValue(item, 'raw.last_price')}</td>
+//                     <td>{getDisplayValue(item, 'raw.volume_traded')}</td>
+//                     <td>{getDisplayValue(item, 'raw.oi')}</td>
+//                     <td>{getDisplayValue(item, 'raw.total_buy_quantity')}</td>
+//                     <td>{getDisplayValue(item, 'raw.total_sell_quantity')}</td>
+//                   </tr>
+//                 );
+//               })}
+//               {renderLimit < data.length && (
+//                 <tr>
+//                   <td colSpan="7" className="loading-more">
+//                     Loading more rows... ({renderLimit} / {data.length})
+//                   </td>
+//                 </tr>
+//               )}
+//             </>
+//           )}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
+
+// function App() {
+//   const [file1Data, setFile1Data] = useState([]);
+//   const [file2Data, setFile2Data] = useState([]);
+//   const [file1Name, setFile1Name] = useState('');
+//   const [file2Name, setFile2Name] = useState('');
+//   const [comparedData, setComparedData] = useState([]);
+//   const [loading, setLoading] = useState(false);
+//   const [loadingProgress, setLoadingProgress] = useState({
+//     file1: 0,
+//     file2: 0,
+//     processing: 0,
+//   });
+//   const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
+
+//   const file1InputRef = useRef(null);
+//   const file2InputRef = useRef(null);
+
+//   // Scroll container refs for both tables
+//   const leftScrollRef = useRef(null);
+//   const rightScrollRef = useRef(null);
+//   const isSyncingRef = useRef(false);
+
+//   // Extract time from timestamp (HH:MM:SS format) - memoized
+//   const extractTime = useCallback((timestamp) => {
+//     if (!timestamp) return '';
+//     try {
+//       const date = new Date(timestamp);
+//       const hours = String(date.getHours()).padStart(2, '0');
+//       const minutes = String(date.getMinutes()).padStart(2, '0');
+//       const seconds = String(date.getSeconds()).padStart(2, '0');
+//       return `${hours}:${minutes}:${seconds}`;
+//     } catch {
+//       return '';
+//     }
+//   }, []);
+
+//   // Parse JSONL file with optimized chunked processing
+//   const parseJSONL = useCallback(async (file, fileNumber) => {
+//     return new Promise((resolve, reject) => {
+//       const reader = new FileReader();
+
+//       reader.onload = async (e) => {
+//         try {
+//           const text = e.target.result;
+//           const lines = text.split('\n');
+//           const totalLines = lines.length;
+//           const data = [];
+//           const chunkSize = 5000;
+//           let processed = 0;
+
+//           const processChunk = async (startIndex) => {
+//             const endIndex = Math.min(startIndex + chunkSize, totalLines);
+
+//             for (let i = startIndex; i < endIndex; i++) {
+//               const line = lines[i]?.trim();
+//               if (line) {
+//                 try {
+//                   const parsed = JSON.parse(line);
+//                   if (parsed && parsed._saved_at) {
+//                     data.push(parsed);
+//                   }
+//                 } catch {
+//                   // skip invalid line
+//                 }
+//               }
+//               processed++;
+//             }
+
+//             const progress = Math.round((processed / totalLines) * 100);
+//             setLoadingProgress((prev) => ({
+//               ...prev,
+//               [`file${fileNumber}`]: progress,
+//             }));
+
+//             if (endIndex < totalLines) {
+//               await new Promise((resolveInner) => {
+//                 if (window.requestIdleCallback) {
+//                   requestIdleCallback(() => resolveInner(), { timeout: 50 });
+//                 } else {
+//                   setTimeout(() => resolveInner(), 10);
+//                 }
+//               });
+//               await processChunk(endIndex);
+//             } else {
+//               resolve(data);
+//             }
+//           };
+
+//           processChunk(0).catch(reject);
+//         } catch (err) {
+//           reject(err);
+//         }
+//       };
+
+//       reader.onerror = reject;
+//       reader.readAsText(file);
+//     });
+//   }, []);
+
+//   const compareData = useCallback(
+//     async (data1, data2) => {
+//       setLoading(true);
+//       setLoadingProgress((prev) => ({ ...prev, processing: 0 }));
+
+//       try {
+//         const map1 = new Map();
+//         const map2 = new Map();
+
+//         const chunkSize = 5000;
+//         let processed1 = 0;
+//         const total1 = data1.length;
+
+//         // File 1
+//         for (let i = 0; i < data1.length; i += chunkSize) {
+//           const chunk = data1.slice(i, Math.min(i + chunkSize, data1.length));
+//           for (const item of chunk) {
+//             const time = extractTime(item._saved_at);
+//             if (time) {
+//               if (!map1.has(time)) {
+//                 map1.set(time, []);
+//               }
+//               map1.get(time).push(item);
+//             }
+//           }
+//           processed1 += chunk.length;
+//           const progress = Math.round((processed1 / total1) * 40);
+//           setLoadingProgress((prev) => ({ ...prev, processing: progress }));
+
+//           await new Promise((resolve) => {
+//             if (window.requestIdleCallback) {
+//               requestIdleCallback(() => resolve(), { timeout: 50 });
+//             } else {
+//               setTimeout(() => resolve(), 10);
+//             }
+//           });
+//         }
+
+//         // File 2
+//         let processed2 = 0;
+//         const total2 = data2.length;
+
+//         for (let i = 0; i < data2.length; i += chunkSize) {
+//           const chunk = data2.slice(i, Math.min(i + chunkSize, data2.length));
+//           for (const item of chunk) {
+//             const time = extractTime(item._saved_at);
+//             if (time) {
+//               if (!map2.has(time)) {
+//                 map2.set(time, []);
+//               }
+//               map2.get(time).push(item);
+//             }
+//           }
+//           processed2 += chunk.length;
+//           const progress = 40 + Math.round((processed2 / total2) * 30);
+//           setLoadingProgress((prev) => ({ ...prev, processing: progress }));
+
+//           await new Promise((resolve) => {
+//             if (window.requestIdleCallback) {
+//               requestIdleCallback(() => resolve(), { timeout: 50 });
+//             } else {
+//               setTimeout(() => resolve(), 10);
+//             }
+//           });
+//         }
+
+//         // Merge timestamps
+//         const allTimes = new Set([...map1.keys(), ...map2.keys()]);
+//         const sortedTimes = Array.from(allTimes).sort();
+
+//         const compared = [];
+//         const timeChunkSize = 2000;
+//         let processed3 = 0;
+//         const total3 = sortedTimes.length;
+
+//         for (let i = 0; i < sortedTimes.length; i += timeChunkSize) {
+//           const timeChunk = sortedTimes.slice(
+//             i,
+//             Math.min(i + timeChunkSize, sortedTimes.length)
+//           );
+
+//           for (const time of timeChunk) {
+//             const items1 = map1.get(time) || [];
+//             const items2 = map2.get(time) || [];
+//             const maxRows = Math.max(items1.length, items2.length);
+
+//             for (let j = 0; j < maxRows; j++) {
+//               compared.push({
+//                 time,
+//                 data1: items1[j] || null,
+//                 data2: items2[j] || null,
+//               });
+//             }
+//           }
+
+//           processed3 += timeChunk.length;
+//           const progress = 70 + Math.round((processed3 / total3) * 30);
+//           setLoadingProgress((prev) => ({ ...prev, processing: progress }));
+
+//           await new Promise((resolve) => {
+//             if (window.requestIdleCallback) {
+//               requestIdleCallback(() => resolve(), { timeout: 50 });
+//             } else {
+//               setTimeout(() => resolve(), 10);
+//             }
+//           });
+//         }
+
+//         setLoadingProgress((prev) => ({ ...prev, processing: 100 }));
+//         setComparedData(compared);
+//       } catch (err) {
+//         console.error('Error comparing data:', err);
+//       } finally {
+//         setLoading(false);
+//       }
+//     },
+//     [extractTime]
+//   );
+
+//   const handleFile1Change = useCallback(
+//     async (e) => {
+//       const file = e.target.files[0];
+//       if (file) {
+//         setFile1Name(file.name);
+//         setLoading(true);
+//         setLoadingProgress((prev) => ({ ...prev, file1: 0 }));
+//         try {
+//           const data = await parseJSONL(file, 1);
+//           setFile1Data(data);
+//           if (file2Data.length > 0) {
+//             await compareData(data, file2Data);
+//           }
+//         } catch (err) {
+//           console.error('Error parsing file 1:', err);
+//           alert('Error reading file 1. Please ensure it is a valid JSONL file.');
+//         } finally {
+//           setLoading(false);
+//           setLoadingProgress((prev) => ({ ...prev, file1: 100 }));
+//         }
+//       }
+//     },
+//     [parseJSONL, file2Data, compareData]
+//   );
+
+//   const handleFile2Change = useCallback(
+//     async (e) => {
+//       const file = e.target.files[0];
+//       if (file) {
+//         setFile2Name(file.name);
+//         setLoading(true);
+//         setLoadingProgress((prev) => ({ ...prev, file2: 0 }));
+//         try {
+//           const data = await parseJSONL(file, 2);
+//           setFile2Data(data);
+//           if (file1Data.length > 0) {
+//             await compareData(file1Data, data);
+//           }
+//         } catch (err) {
+//           console.error('Error parsing file 2:', err);
+//           alert('Error reading file 2. Please ensure it is a valid JSONL file.');
+//         } finally {
+//           setLoading(false);
+//           setLoadingProgress((prev) => ({ ...prev, file2: 100 }));
+//         }
+//       }
+//     },
+//     [parseJSONL, file1Data, compareData]
+//   );
+
+//   // Format number for display - memoized
+//   const formatNumber = useCallback((num) => {
+//     if (num === null || num === undefined) return '-';
+//     if (typeof num === 'number') {
+//       return num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+//     }
+//     return num;
+//   }, []);
+
+//   // Get display value from data item - memoized
+//   const getDisplayValue = useCallback(
+//     (item, key) => {
+//       if (!item) return '';
+//       const keys = key.split('.');
+//       let value = item;
+//       for (const k of keys) {
+//         value = value?.[k];
+//         if (value === undefined || value === null) return '';
+//       }
+//       return formatNumber(value);
+//     },
+//     [formatNumber]
+//   );
+
+//   // Build available time slots of 10 minutes (HH:MM) from compared data
+//   const availableTimeSlots = useMemo(() => {
+//     const slots = new Set();
+//     for (const row of comparedData) {
+//       if (row.time && row.time.length >= 5) {
+//         const hour = row.time.slice(0, 2);
+//         const minute = row.time.slice(3, 5);
+//         const minuteNum = Number.parseInt(minute, 10);
+//         if (Number.isNaN(minuteNum)) continue;
+//         const roundedDown = Math.floor(minuteNum / 10) * 10; // 0,10,20,...,50
+//         const minuteSlot = String(roundedDown).padStart(2, '0');
+//         slots.add(`${hour}:${minuteSlot}`);
+//       }
+//     }
+//     return Array.from(slots).sort(); // 'HH:MM'
+//   }, [comparedData]);
+
+//   // Filter data by selected time slot: show all rows from that time onwards
+//   const filteredComparedData = useMemo(() => {
+//     if (!selectedTimeSlot) return comparedData;
+//     return comparedData.filter(
+//       (row) => row.time && row.time >= `${selectedTimeSlot}:00`
+//     );
+//   }, [comparedData, selectedTimeSlot]);
+
+//   // When compared data changes (new comparison), scroll both tables to top
+//   useEffect(() => {
+//     if (leftScrollRef.current) leftScrollRef.current.scrollTop = 0;
+//     if (rightScrollRef.current) rightScrollRef.current.scrollTop = 0;
+//     // Reset time filter when new comparison is ready
+//     setSelectedTimeSlot('');
+//   }, [comparedData.length]);
+
+//   return (
+//     <div className="app-container">
+//       {/* Header Section */}
+//       <div className="header-section">
+//         <div className="header-content">
+//           <h1 className="main-heading">Options Data Comparison</h1>
+
+//           {/* Filter Section */}
+//           <div className="filter-section">
+//             <div className="file-selector-group">
+//               <label className="file-label">
+//                 <span className="file-label-text">File 1:</span>
+//                 <input
+//                   ref={file1InputRef}
+//                   type="file"
+//                   accept=".jsonl"
+//                   onChange={handleFile1Change}
+//                   className="file-input"
+//                   disabled={loading}
+//                 />
+//                 <span className="file-name">
+//                   {file1Name || 'No file selected'}
+//                 </span>
+//               </label>
+//             </div>
+
+//             <div className="file-selector-group">
+//               <label className="file-label">
+//                 <span className="file-label-text">File 2:</span>
+//                 <input
+//                   ref={file2InputRef}
+//                   type="file"
+//                   accept=".jsonl"
+//                   onChange={handleFile2Change}
+//                   className="file-input"
+//                   disabled={loading}
+//                 />
+//                 <span className="file-name">
+//                   {file2Name || 'No file selected'}
+//                 </span>
+//               </label>
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Loading Indicator */}
+//         {loading && (
+//           <div className="loading-indicator">
+//             <div className="loading-bar">
+//               <div
+//                 className="loading-progress"
+//                 style={{
+//                   width: `${Math.max(
+//                     loadingProgress.file1,
+//                     loadingProgress.file2,
+//                     loadingProgress.processing
+//                   )}%`,
+//                 }}
+//               />
+//             </div>
+//             <div className="loading-text">
+//               {loadingProgress.processing > 0
+//                 ? `Processing comparison: ${loadingProgress.processing}%`
+//                 : loadingProgress.file1 > 0
+//                 ? `Loading File 1: ${loadingProgress.file1}%`
+//                 : `Loading File 2: ${loadingProgress.file2}%`}
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* Tables Section */}
+//       <div className="tables-container">
+//         {/* Left Table */}
+//         <div className="table-wrapper">
+//           <div className="table-header">
+//             <div className="table-header-content">
+//               <h2 className="table-title">{file1Name || 'File 1'}</h2>
+//               <div className="time-filter">
+//                 <select
+//                   className="time-select"
+//                   value={selectedTimeSlot}
+//                   onChange={(e) => setSelectedTimeSlot(e.target.value)}
+//                   disabled={availableTimeSlots.length === 0}
+//                 >
+//                   <option value="">All Times</option>
+//                   {availableTimeSlots.map((slot) => (
+//                     <option key={slot} value={slot}>
+//                       {slot}
+//                     </option>
+//                   ))}
+//                 </select>
+//               </div>
+//             </div>
+//           </div>
+//           <DataTable
+//             data={filteredComparedData}
+//             getDisplayValue={getDisplayValue}
+//             side="left"
+//             scrollRef={leftScrollRef}
+//             otherScrollRef={rightScrollRef}
+//             isSyncingRef={isSyncingRef}
+//             tableId="left"
+//           />
+//         </div>
+
+//         {/* Right Table */}
+//         <div className="table-wrapper">
+//           <div className="table-header">
+//             <div className="table-header-content">
+//               <h2 className="table-title">{file2Name || 'File 2'}</h2>
+//               <div className="time-filter">
+//                 <select
+//                   className="time-select"
+//                   value={selectedTimeSlot}
+//                   onChange={(e) => setSelectedTimeSlot(e.target.value)}
+//                   disabled={availableTimeSlots.length === 0}
+//                 >
+//                   <option value="">All Times</option>
+//                   {availableTimeSlots.map((slot) => (
+//                     <option key={slot} value={slot}>
+//                       {slot}
+//                     </option>
+//                   ))}
+//                 </select>
+//               </div>
+//             </div>
+//           </div>
+//           <DataTable
+//             data={filteredComparedData}
+//             getDisplayValue={getDisplayValue}
+//             side="right"
+//             scrollRef={rightScrollRef}
+//             otherScrollRef={leftScrollRef}
+//             isSyncingRef={isSyncingRef}
+//             tableId="right"
+//           />
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// export default App;
+
+
+import React, {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+} from 'react';
 import './styles/globals.css';
 
 // Optimized table component with synchronized scrolling
@@ -116,6 +705,10 @@ function App() {
   const [file1Name, setFile1Name] = useState('');
   const [file2Name, setFile2Name] = useState('');
   const [comparedData, setComparedData] = useState([]);
+
+  // 🔹 filteredData = time filter apply thayel data
+  const [filteredData, setFilteredData] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState({
     file1: 0,
@@ -130,6 +723,9 @@ function App() {
   const leftScrollRef = useRef(null);
   const rightScrollRef = useRef(null);
   const isSyncingRef = useRef(false);
+
+  // 🔹 Time filter state (10-minute steps)
+  const [selectedTime, setSelectedTime] = useState('');
 
   // Extract time from timestamp (HH:MM:SS format) - memoized
   const extractTime = useCallback((timestamp) => {
@@ -317,6 +913,8 @@ function App() {
         }
 
         setLoadingProgress((prev) => ({ ...prev, processing: 100 }));
+
+        // 🔹 Save full compared data (master)
         setComparedData(compared);
       } catch (err) {
         console.error('Error comparing data:', err);
@@ -401,11 +999,111 @@ function App() {
     [formatNumber]
   );
 
-  // When compared data changes (new comparison), scroll both tables to top
+  // 🔹 Helper: time string → minutes
+  const getMinutesFromTime = useCallback((t) => {
+    if (!t) return null;
+    const parts = t.split(':');
+    if (parts.length < 2) return null;
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  }, []);
+
+  // 🔹 Helper: minutes → "HH:MM:00"
+  const formatTimeHHMMSS = useCallback((totalMinutes) => {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    const hh = String(h).padStart(2, '0');
+    const mm = String(m).padStart(2, '0');
+    return `${hh}:${mm}:00`;
+  }, []);
+
+  // 🔹 Generate 10-minute time options from min..max time range
+  const timeOptions = useMemo(() => {
+    if (!comparedData.length) return [];
+
+    let startTime = null;
+    let endTime = null;
+
+    // first non-empty time
+    for (let i = 0; i < comparedData.length; i++) {
+      if (comparedData[i].time) {
+        startTime = comparedData[i].time;
+        break;
+      }
+    }
+
+    // last non-empty time
+    for (let i = comparedData.length - 1; i >= 0; i--) {
+      if (comparedData[i].time) {
+        endTime = comparedData[i].time;
+        break;
+      }
+    }
+
+    if (!startTime || !endTime) return [];
+
+    const startMinutesRaw = getMinutesFromTime(startTime);
+    const endMinutesRaw = getMinutesFromTime(endTime);
+    if (startMinutesRaw == null || endMinutesRaw == null) return [];
+
+    const step = 10;
+    const startMinutes = Math.floor(startMinutesRaw / step) * step;
+    const endMinutes = Math.ceil(endMinutesRaw / step) * step;
+
+    const options = [];
+    for (let m = startMinutes; m <= endMinutes; m += step) {
+      options.push(formatTimeHHMMSS(m));
+    }
+    return options;
+  }, [comparedData, getMinutesFromTime, formatTimeHHMMSS]);
+
+  // 🔹 Binary search based time filter (very fast)
+  const applyTimeFilter = useCallback(
+    (baseData, timeValue) => {
+      if (!timeValue || !baseData.length) return baseData;
+
+      let low = 0;
+      let high = baseData.length - 1;
+      let ans = baseData.length;
+
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const t = baseData[mid].time || '';
+        if (t >= timeValue) {
+          ans = mid;
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
+      }
+
+      return baseData.slice(ans);
+    },
+    []
+  );
+
+  // 🔹 Time dropdown change handler
+  const handleTimeChange = useCallback(
+    (e) => {
+      const value = e.target.value;
+      setSelectedTime(value);
+      setFilteredData(applyTimeFilter(comparedData, value));
+    },
+    [applyTimeFilter, comparedData]
+  );
+
+  // 🔹 Jab new comparison ready ya time change → filteredData update
+  useEffect(() => {
+    setFilteredData(applyTimeFilter(comparedData, selectedTime));
+  }, [comparedData, selectedTime, applyTimeFilter]);
+
+  // When filtered data changes, scroll both tables to top
   useEffect(() => {
     if (leftScrollRef.current) leftScrollRef.current.scrollTop = 0;
     if (rightScrollRef.current) rightScrollRef.current.scrollTop = 0;
-  }, [comparedData.length]);
+  }, [filteredData.length]);
 
   return (
     <div className="app-container">
@@ -416,6 +1114,26 @@ function App() {
 
           {/* Filter Section */}
           <div className="filter-section">
+            {/* 🔹 Time Filter (10-minute dropdown) */}
+            <div className="time-filter-group">
+              <span className="time-filter-label">
+                Time filter (10 min steps)
+              </span>
+              <select
+                className="time-filter-select"
+                value={selectedTime}
+                onChange={handleTimeChange}
+                disabled={timeOptions.length === 0 || loading}
+              >
+                <option value="">All times</option>
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="file-selector-group">
               <label className="file-label">
                 <span className="file-label-text">File 1:</span>
@@ -486,7 +1204,7 @@ function App() {
             <h2 className="table-title">{file1Name || 'File 1'}</h2>
           </div>
           <DataTable
-            data={comparedData}
+            data={filteredData}
             getDisplayValue={getDisplayValue}
             side="left"
             scrollRef={leftScrollRef}
@@ -502,7 +1220,7 @@ function App() {
             <h2 className="table-title">{file2Name || 'File 2'}</h2>
           </div>
           <DataTable
-            data={comparedData}
+            data={filteredData}
             getDisplayValue={getDisplayValue}
             side="right"
             scrollRef={rightScrollRef}
@@ -517,3 +1235,4 @@ function App() {
 }
 
 export default App;
+
