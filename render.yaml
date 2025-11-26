@@ -1,6 +1,6 @@
 services:
   - type: static
-    name: nifty-bank-comparison
+    name: tick-analyzer-front
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:
